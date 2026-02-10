@@ -1,0 +1,19 @@
+[package]
+name = "cortex-m-edf-rtic"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cortex-m = { version = "0.7.7", features = [
+    "critical-section-single-core",
+    "inline-asm",
+] }
+cortex-m-rt = "0.7.5"
+rtic-edf-pass = { path = "../rtic-edf-pass", default-features = false }
+rtic-macro = { path = "rtic-macro" }
+defmt = { version = "1.0", optional = true }
+
+[features]
+check-missed-deadlines = ["rtic-edf-pass/check-missed-deadlines"]
+defmt = ["dep:defmt", "rtic-edf-pass/defmt"]
+benchmark = ["rtic-edf-pass/benchmark"]

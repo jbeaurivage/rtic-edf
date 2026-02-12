@@ -67,11 +67,7 @@ impl App {
             .map(TaskStructDef::from_struct)
             .collect::<syn::Result<Vec<_>>>()?;
 
-        let tasks = Self::assign_dispatchers_and_priorities(
-            edf_pass,
-            task_defs,
-            &app_parameters.dispatchers,
-        );
+        let tasks = Self::assign_dispatchers_and_priorities(task_defs, &app_parameters.dispatchers);
 
         Ok(Self {
             mod_ident: app_mod.ident,
@@ -101,7 +97,6 @@ impl App {
     }
 
     fn assign_dispatchers_and_priorities(
-        edf_pass: &EdfPass,
         tasks: Vec<TaskStructDef>,
         dispatchers: &[Path],
     ) -> Vec<EdfTask> {

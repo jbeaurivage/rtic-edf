@@ -209,6 +209,8 @@ impl EdfTask {
         let sched_task_ident = format_ident!("__edf_scheduler_signal_{task_struct_ident}");
         let deadline_us = self.deadline_us;
 
+        let ident = &binds.segments.last().unwrap().ident;
+
         parse_quote! {
             #[task(priority = #priority, binds = #binds)]
             #[allow(non_camel_case_types)]
@@ -221,6 +223,23 @@ impl EdfTask {
 
                 fn exec(&mut self) {
                     use ::rtic_edf_pass::task::EdfTaskBinding;
+
+                    if Interrupt::#ident.number() > 0 {
+                        let to_pend: Interrupt = unsafe {
+                            let to_pend = ::rtic_edf_pass::scheduler::reverse_pend_chain::PEND_PREVIOUS_IRQ[Interrupt::#ident.number() as usize].unwrap();
+                            core::mem::transmute(to_pend)
+                        };
+                        // defmt::warn!(
+                        //     "In {}, pending {}",
+                        //     defmt::Debug2Format(&Interrupt::#ident),
+                        //     defmt::Debug2Format(&to_pend)
+                        // );
+                        ::cortex_m::peripheral::NVIC::pend(to_pend);
+                    }
+
+                    // XXX --- BENCHMARK FIXTURE ---
+                    ::rtic_edf_pass::scheduler::benchmark::begin_trace();
+                    // XXX --- END BENCHMARK FIXTURE ---
 
                     #task_struct_ident::mask_timestamper_interrupt();
                     SCHEDULER.schedule(

@@ -65,9 +65,8 @@ pub trait Scheduler<const NUM_DISPATCH_PRIOS: usize, const Q_LEN: usize>: Sized 
         //
         // This only works because every priority level only has one unique relative
         // deadline, such that no task can ever preempt another with the same deadline
-        if task.abs_deadline() < sys_dl || dispatcher_ready {
-            let preempt = task.abs_deadline() < sys_dl;
-
+        let preempt = task.abs_deadline() < sys_dl;
+        if preempt || dispatcher_ready {
             #[cfg(feature = "defmt")]
             defmt::trace!("[DIRECT EXECUTE] preempt: {}", preempt);
 

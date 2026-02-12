@@ -50,11 +50,22 @@ impl RticPass for EdfPass {
 
 impl EdfPass {
     fn analyze(&self, app: &mut App) {
+        let max_prio = *app.dispatcher_priorities().iter().max().unwrap();
+        let min_prio = *app.dispatcher_priorities().iter().min().unwrap();
+
         // Reserve the highest priority for the timestamper interrupts
         assert!(
-            *app.dispatcher_priorities().iter().max().unwrap() < self.max_priority,
-            "Exceeded number of priorities for this platform ({}), please coerce deadlines manually.",
-            self.max_priority
+            max_prio < self.max_priority,
+            "Exceeded number of priorities for this platform ({}, max {}). Please coerce deadlines manually.",
+            max_prio,
+            self.max_priority - 1
+        );
+
+        assert!(
+            min_prio >= self.min_priority,
+            "Some tasks have priorities lower than supported by this platform ({}, min {}). Please coerce deadlines manually.",
+            min_prio,
+            self.min_priority
         );
 
         assert!(

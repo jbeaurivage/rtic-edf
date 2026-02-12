@@ -135,7 +135,7 @@ impl App {
             .map(|(((dispatcher_idx, task), prio), dispatcher_path)| {
                 // Subtract 1 such that the minimum index is 0
                 let rq_idx = prio - 1;
-                let priority = prio + edf_pass.min_priority;
+                let priority = prio;
 
                 EdfTask {
                     params: task.params,

@@ -18,4 +18,4 @@ inherits = "release"
 debug-assertions = true
 
 [patch.crates-io]
-rtic-core = { git = "https://github.com/jbeaurivage/rtic-mc-experiments", branch = "clone-rticattr" }
+rtic-core = { git = "https://github.com/zakimadaoui/rtic-mc-experiments", branch = "main" }

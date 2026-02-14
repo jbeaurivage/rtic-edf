@@ -331,7 +331,7 @@ dependencies = [
 [[package]]
 name = "rtic-core"
 version = "0.1.0"
-source = "git+https://github.com/jbeaurivage/rtic-mc-experiments?branch=clone-rticattr#16ce23b6b21ac9fb95dd1f90e5d2b2a05004a3a4"
+source = "git+https://github.com/zakimadaoui/rtic-mc-experiments?branch=main#01c469b6ea369e60373b7cc1703ecf2d7aaded96"
 dependencies = [
  "derive_builder",
  "heck 0.4.1",

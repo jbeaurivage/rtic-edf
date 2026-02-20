@@ -67,11 +67,14 @@ impl App {
             .map(TaskStructDef::from_struct)
             .collect::<syn::Result<Vec<_>>>()?;
 
-        let tasks = Self::assign_dispatchers_and_priorities(
-            edf_pass,
-            task_defs,
-            &app_parameters.dispatchers,
+        assert!(
+            app_parameters.dispatchers.len() >= task_defs.len(),
+            "The EDF scheduler needs at least as many dispatchers as there are tasks ({} tasks, {} dispatchers).",
+            task_defs.len(),
+            app_parameters.dispatchers.len()
         );
+
+        let tasks = Self::assign_dispatchers_and_priorities(task_defs, &app_parameters.dispatchers);
 
         Ok(Self {
             mod_ident: app_mod.ident,
@@ -101,7 +104,6 @@ impl App {
     }
 
     fn assign_dispatchers_and_priorities(
-        edf_pass: &EdfPass,
         tasks: Vec<TaskStructDef>,
         dispatchers: &[Path],
     ) -> Vec<EdfTask> {

@@ -67,12 +67,5 @@ impl EdfPass {
             min_prio,
             self.min_priority
         );
-
-        assert!(
-            app.app_parameters.dispatchers.len() >= app.tasks.len(),
-            "The EDF scheduler needs at least as many dispatchers as there are tasks ({} tasks, {} dispatchers).",
-            app.tasks.len(),
-            app.app_parameters.dispatchers.len()
-        )
     }
 }

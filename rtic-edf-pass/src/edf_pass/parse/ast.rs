@@ -6,7 +6,7 @@ use crate::types::Deadline;
 pub struct AppParameters {
     pub dispatchers: Vec<Path>,
     pub pac_path: Path,
-    pub cpu_freq: u32,
+    pub _cpu_freq: u32,
 }
 
 impl AppParameters {
@@ -44,7 +44,7 @@ impl AppParameters {
         Ok(Self {
             dispatchers: dispatcher_vec,
             pac_path: pac_path.path.clone(),
-            cpu_freq,
+            _cpu_freq: cpu_freq,
         })
     }
 }

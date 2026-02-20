@@ -11,7 +11,7 @@ use atsamd_hal::{
 
 #[cortex_m_edf_rtic::app(
     device = atsamd_hal::pac,
-    dispatchers = [SERCOM0_0, SERCOM0_1, SERCOM0_2],
+    dispatchers = [SERCOM0_0, SERCOM0_1, SERCOM0_2, SERCOM0_OTHER, SDHC0],
     cpu_freq = 120_000_000,
 )]
 mod app {
@@ -57,10 +57,10 @@ mod app {
     }
 
     #[idle]
-    pub struct MyIdleTask {
+    pub struct IdleTask {
         _count: u32,
     }
-    impl RticIdleTask for MyIdleTask {
+    impl RticIdleTask for IdleTask {
         fn init() -> Self {
             Self { _count: 0 }
         }
@@ -73,12 +73,38 @@ mod app {
         }
     }
 
+    #[task(deadline_us = 800_000, binds = PM, shared = [x])]
+    pub struct PreemptingTask0;
+
+    impl RticTask for PreemptingTask0 {
+        fn init() -> Self {
+            Self
+        }
+
+        fn exec(&mut self) {
+            defmt::info!("Preempting task 0 (PM)");
+        }
+    }
+
+    #[task(deadline_us = 900_000, binds = WDT, shared = [x])]
+    pub struct PreemptingTask1;
+
+    impl RticTask for PreemptingTask1 {
+        fn init() -> Self {
+            Self
+        }
+
+        fn exec(&mut self) {
+            defmt::info!("Preempting task 1 (WDT)");
+        }
+    }
+
     #[task(deadline_us = 1_000_000, binds = SERCOM1_0, shared = [x])]
-    pub struct Task0 {}
+    pub struct Task0;
 
     impl RticTask for Task0 {
         fn init() -> Self {
-            Self {}
+            Self
         }
 
         fn exec(&mut self) {
@@ -93,11 +119,11 @@ mod app {
     }
 
     #[task(deadline_us = 4_000_000, binds = SERCOM1_1, shared = [x])]
-    pub struct ShortTask {}
+    pub struct ShortTask;
 
     impl RticTask for ShortTask {
         fn init() -> Self {
-            Self {}
+            Self
         }
 
         fn exec(&mut self) {
@@ -113,11 +139,11 @@ mod app {
     }
 
     #[task(deadline_us = 8_000_000, binds = SERCOM1_2, shared = [x])]
-    pub struct LongTask {}
+    pub struct LongTask;
 
     impl RticTask for LongTask {
         fn init() -> Self {
-            Self {}
+            Self
         }
 
         fn exec(&mut self) {
@@ -128,7 +154,7 @@ mod app {
             });
 
             cortex_m::asm::delay(4_000_000);
-            defmt::warn!("Long task x = {}", a);
+            defmt::info!("Long task x = {}", a);
         }
     }
 }

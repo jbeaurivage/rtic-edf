@@ -41,3 +41,8 @@ required-features = ["rtic-edf-pass/defmt"]
 
 [patch.crates-io]
 rtic-core = { git = "https://github.com/zakimadaoui/rtic-mc-experiments", branch = "main" }
+
+[profile.release]
+debug = 2
+lto = "fat"
+opt-level = 3

@@ -1,7 +1,4 @@
-// Note: most of the code here is taken from rtic repo
-#![allow(clippy::inline_always)]
-
-use cortex_m::register::{basepri, basepri_max, primask::Primask};
+use cortex_m::register::{basepri, basepri_max};
 pub use cortex_m::{
     Peripherals,
     asm::nop,
@@ -9,7 +6,6 @@ pub use cortex_m::{
     interrupt,
     peripheral::{DWT, NVIC, SCB, SYST, scb::SystemHandler},
 };
-use rtic_edf_pass::critical_section::DroppableCriticalSection;
 
 /// Distribution crate must re-export the `export` module from all the used
 /// compilation passes
@@ -89,38 +85,5 @@ pub unsafe fn lock<T, R>(
             basepri::write(current);
             r
         }
-    }
-}
-
-/// A critical section implementation that restores the old PRIMASK state when
-/// it is dropped.
-pub struct CsGuard {
-    primask: Primask,
-}
-
-unsafe impl rtic_edf_pass::critical_section::DroppableCriticalSection for CsGuard {
-    fn enter() -> Self {
-        let primask = cortex_m::register::primask::read();
-        interrupt::disable();
-
-        Self { primask }
-    }
-
-    fn forget(self) {
-        core::mem::forget(self);
-    }
-
-    fn restore(&mut self) {
-        if self.primask.is_active() {
-            unsafe {
-                interrupt::enable();
-            }
-        }
-    }
-}
-
-impl Drop for CsGuard {
-    fn drop(&mut self) {
-        self.restore();
     }
 }

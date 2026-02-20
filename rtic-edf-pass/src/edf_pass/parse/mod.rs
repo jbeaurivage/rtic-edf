@@ -100,7 +100,7 @@ impl App {
     /// time before having the enqueue an arriving task, by pending the task
     /// directly in its dispatcher.
     pub fn wait_queue_len(&self) -> usize {
-        self.tasks.len() - self.dispatcher_priorities().len()
+        self.tasks.len()
     }
 
     fn assign_dispatchers_and_priorities(

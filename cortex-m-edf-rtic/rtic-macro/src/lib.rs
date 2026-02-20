@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use rtic_core::{AppArgs, CorePassBackend, RticMacroBuilder, SubAnalysis, SubApp};
-use syn::{ItemFn, parse_quote};
+use syn::{parse_quote, ItemFn};
 extern crate proc_macro;
 use rtic_edf_pass::EdfPass;
 struct AtsamdEdfRtic;
@@ -20,7 +20,7 @@ pub fn app(args: TokenStream, input: TokenStream) -> TokenStream {
     builder.build_rtic_macro(args, input)
 }
 
-// =========================================== Trait implementations ===================================================
+// ========== Trait implementations ==========
 impl CorePassBackend for AtsamdEdfRtic {
     fn default_task_priority(&self) -> u16 {
         1
@@ -74,7 +74,8 @@ impl CorePassBackend for AtsamdEdfRtic {
         })
     }
     fn generate_interrupt_free_fn(&self, mut empty_body_fn: ItemFn) -> ItemFn {
-        // eprintln!("{}", empty_body_fn.to_token_stream().to_string()); // enable comment to see the function signature
+        // Enable comment to see the function signature
+        // eprintln!("{}", empty_body_fn.to_token_stream().to_string());
 
         let fn_body = parse_quote! {
             {
@@ -136,12 +137,13 @@ impl CorePassBackend for AtsamdEdfRtic {
 
     fn entry_name(&self, _core: u32) -> Ident {
         // same entry name for both cores.
-        // two main() functions will be generated but both will be guarded by #[cfg(core = "X")]
-        // each generated binary will have have one entry
+        // two main() functions will be generated but both will be guarded by #[cfg(core
+        // = "X")] each generated binary will have have one entry
         format_ident!("main")
     }
 
-    /// Customize how the task is dispatched when its bound interrupt is triggered (save baspri before and restore after executing the task)
+    /// Customize how the task is dispatched when its bound interrupt is
+    /// triggered (save baspri before and restore after executing the task)
     fn wrap_task_execution(
         &self,
         task_prio: u16,

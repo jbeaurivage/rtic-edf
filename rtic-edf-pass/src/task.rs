@@ -71,7 +71,7 @@ impl Task {
 
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub(crate) struct ScheduledTask {
+pub struct ScheduledTask {
     deadline: Timestamp,
     dispatcher_idx: u16,
     rq_idx: u16,
@@ -79,20 +79,20 @@ pub(crate) struct ScheduledTask {
 
 impl ScheduledTask {
     #[inline]
-    pub fn abs_deadline(&self) -> Timestamp {
+    pub(crate) fn abs_deadline(&self) -> Timestamp {
         self.deadline
     }
 
     /// Returns the run queue index associated with this task's dispatcher.
     #[inline]
-    pub fn rq_index(&self) -> u16 {
+    pub(crate) fn rq_index(&self) -> u16 {
         self.rq_idx
     }
 
     /// Returns the dispatcher's index (ie, which dispatcher to pend when we
     /// want to start running the task)
     #[inline]
-    pub fn dispatcher_index(&self) -> u16 {
+    pub(crate) fn dispatcher_index(&self) -> u16 {
         self.dispatcher_idx
     }
 }
@@ -118,27 +118,5 @@ impl Ord for ScheduledTask {
     #[inline]
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.deadline.cmp(&other.deadline)
-    }
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub(crate) enum RunningTask {
-    /// If preempted, the task enum contains the previous deadline that it has
-    /// preempted
-    Preempted(Timestamp),
-    /// If it's an early dispatch, the enum contains the task's absolute
-    /// deadline
-    EarlyDispatch(Timestamp),
-}
-
-impl RunningTask {
-    #[inline]
-    pub(crate) fn early_dispatch(task: ScheduledTask) -> Self {
-        Self::EarlyDispatch(task.deadline)
-    }
-
-    pub(crate) fn preempt(previous_dl: Timestamp) -> Self {
-        Self::Preempted(previous_dl)
     }
 }

@@ -1,5 +1,3 @@
-//! examples/hello_world.rs
-
 // #![deny(unsafe_code)]
 #![deny(warnings)]
 #![no_main]

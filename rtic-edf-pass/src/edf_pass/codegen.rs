@@ -110,10 +110,9 @@ impl CodeGen {
                 }
             }
 
-            // TODO: cortex-m is leaking here
             impl ::rtic_edf_pass::scheduler::Scheduler<EDF_RUN_QUEUE_LEN, EDF_WAIT_QUEUE_LEN> for NvicScheduler {
-                type CS = ::cortex_m_edf_rtic::export::CsGuard;
 
+                // TODO: cortex-m is leaking here
                 #[inline]
                 fn now() -> ::rtic_edf_pass::types::Timestamp {
                     ::cortex_m::peripheral::DWT::cycle_count()
@@ -223,7 +222,12 @@ impl EdfTask {
                     use ::rtic_edf_pass::task::EdfTaskBinding;
 
                     #task_struct_ident::mask_timestamper_interrupt();
+
+                    // SAFETY: we are running at the highest system priority.
+                    let cs = unsafe { ::rtic_edf_pass::scheduler::CriticalSection::new() };
+
                     SCHEDULER.schedule(
+                        cs,
                         ::rtic_edf_pass::task::Task::new(
                             #deadline_us,
                             <#task_struct_ident as ::rtic_edf_pass::task::EdfTaskBinding>::DISPATCHER_IDX,

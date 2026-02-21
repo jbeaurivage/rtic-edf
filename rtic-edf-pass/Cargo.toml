@@ -27,5 +27,9 @@ default = ["std"]
 
 multibin = ["rtic-core/multibin"]
 defmt = ["dep:defmt", "priority-queue/defmt"]
-benchmark = ["defmt"]
+benchmark = ["defmt", "priority-queue/benchmark"]
 check-missed-deadlines = []
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(bench_dispatcher_exit_cs)", "cfg(bench_dispatcher_entry_cs)"]

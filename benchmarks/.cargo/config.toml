@@ -10,6 +10,13 @@ rustflags = [
   "-C", "link-arg=--nmagic",
   "-C", "link-arg=-Tdefmt.x", # uncomment if using defmt
 
+  # Select one of these configs to measure a certain code section.
+  # Results are printed with defmt.
+  "--cfg", "bench_arrival_handler",
+  # "--cfg", "bench_dispatcher_exit",
+  # "--cfg", "bench_pop_cs",
+  # "--cfg", "bench_dispatcher_exit_cs",
+
   # if you run into problems with LLD switch to the GNU linker by commenting out
   # this line
   # "-C", "linker=arm-none-eabi-ld",

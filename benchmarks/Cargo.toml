@@ -9,8 +9,8 @@ cortex-m = { version = "0.7.7", features = [
     "inline-asm",
 ] }
 cortex-m-rt = "0.7.5"
-cortex-m-edf-rtic = { path = "../cortex-m-edf-rtic", features = ["defmt", "benchmark"]}
-rtic-edf-pass = { path = "../rtic-edf-pass", default-features = false }
+cortex-m-edf-rtic = { path = "../cortex-m-edf-rtic"}
+rtic-edf-pass = { path = "../rtic-edf-pass", default-features = false, features = ["defmt", "benchmark"] }
 benchmark-generator = { path = "benchmark-generator" }
 
 defmt = "1.0.1"
@@ -46,3 +46,7 @@ rtic-core = { git = "https://github.com/zakimadaoui/rtic-mc-experiments", branch
 debug = 2
 lto = "fat"
 opt-level = 3
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(bench_arrival_handler)", "cfg(bench_dispatcher_entry)", "cfg(bench_dispatcher_exit)"]

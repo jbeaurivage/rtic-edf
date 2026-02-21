@@ -24,9 +24,9 @@ dependencies = [
 
 [[package]]
 name = "atsamd-hal"
-version = "0.23.1"
+version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af813287c64964849266eda886e7f6aa8001d7d5d19f3be1f5b03b85d531e42a"
+checksum = "15ecba6d9da0e33fe34876782b771b0777d2515eab00da77fce41fa8824cfda9"
 dependencies = [
  "aes",
  "atsamd-hal-macros",
@@ -191,7 +191,6 @@ version = "0.1.0"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
- "defmt 1.0.1",
  "rtic-edf-pass",
  "rtic-macro",
 ]
@@ -783,6 +782,7 @@ checksum = "c33a9471896f1c69cecef8d20cbe2f7accd12527ce60845ff44c153bb2a21b49"
 name = "priority-queue"
 version = "0.1.0"
 dependencies = [
+ "cortex-m",
  "critical-section",
  "defmt 1.0.1",
  "loom",

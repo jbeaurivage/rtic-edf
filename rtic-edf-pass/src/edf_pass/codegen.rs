@@ -186,9 +186,16 @@ impl CodeGen {
                         const RUN_QUEUE_IDX: u16 = #rq_idx;
 
                         let task_to_run =  unsafe { #static_ident.assume_init_mut() };
-                        let deadline_to_restore = SCHEDULER.check_missed_deadline(RUN_QUEUE_IDX);
+
+                        SCHEDULER.check_missed_deadline(RUN_QUEUE_IDX);
+
                         task_to_run.exec();
+
+                         #[cfg(bench_dispatcher_exit)]
+                        ::rtic_edf_pass::scheduler::benchmark::begin_trace();
                         SCHEDULER.dispatcher_exit::<#task_ident>(RUN_QUEUE_IDX);
+                         #[cfg(bench_dispatcher_exit)]
+                        ::rtic_edf_pass::scheduler::benchmark::print_trace();
                     }
                 }
             })
@@ -221,6 +228,10 @@ impl EdfTask {
                 fn exec(&mut self) {
                     use ::rtic_edf_pass::task::EdfTaskBinding;
 
+
+                    #[cfg(any(bench_arrival_handler))]
+                    ::rtic_edf_pass::scheduler::benchmark::begin_trace();
+
                     #task_struct_ident::mask_timestamper_interrupt();
 
                     // SAFETY: we are running at the highest system priority.
@@ -234,6 +245,9 @@ impl EdfTask {
                             <#task_struct_ident as ::rtic_edf_pass::task::EdfTaskBinding>::RUN_QUEUE_IDX,
                         ),
                     );
+
+                    #[cfg(any(bench_arrival_handler))]
+                    ::rtic_edf_pass::scheduler::benchmark::print_trace();
 
                 }
             }

@@ -2,9 +2,7 @@
 chip = "ATSAMD51J19A"
 
 [default.rtt]
-enabled = true
-# Give ourselves time to attach gdb
-timeout = 100000
+enabled = false
 
 [default.reset]
 enabled = true
@@ -13,3 +11,8 @@ halt_afterwards = true
 [default.gdb]
 enabled = true
 gdb_connection_string = "[::1]:1337"
+
+[with_rtt.rtt]
+enabled = true
+# Give ourselves time to attach gdb
+timeout = 100000

@@ -30,15 +30,16 @@ pub trait Scheduler<const NUM_DISPATCH_PRIOS: usize, const Q_LEN: usize>: Sized 
     ///
     /// This function must be run either inside a critical section, or at the
     /// highest interrupt priority on the system.
+    #[inline]
     fn schedule(&self, cs: CriticalSection<'_>, task: Task) {
-        #[cfg(feature = "defmt")]
+        #[cfg(all(feature = "defmt", not(feature = "benchmark")))]
         let rel_dl = task.rel_deadline();
 
         let now = Self::now();
         let task = task.into_scheduled(now);
         let sys_dl = self.system_deadline().load();
 
-        #[cfg(feature = "defmt")]
+        #[cfg(all(feature = "defmt", not(feature = "benchmark")))]
         defmt::trace!(
             "[SCHEDULE] now: {}, rel dl: {}, abs dl: {}, sys dl: {}, dispatcher idx: {}, run queue idx: {}",
             now,
@@ -59,16 +60,16 @@ pub trait Scheduler<const NUM_DISPATCH_PRIOS: usize, const Q_LEN: usize>: Sized 
         // This only works because every priority level only has one unique relative
         // deadline, such that no task can ever preempt another with the same deadline
         if task.abs_deadline() < sys_dl {
-            #[cfg(feature = "defmt")]
+            #[cfg(all(feature = "defmt", not(feature = "benchmark")))]
             defmt::trace!("[DIRECT EXECUTE]");
             execute(self, &cs, task);
         } else {
             {
-                #[cfg(feature = "defmt")]
+                #[cfg(all(feature = "defmt", not(feature = "benchmark")))]
                 defmt::trace!("[ENQUEUE]");
 
                 self.wait_queue()
-                    .insert(task)
+                    .insert(cs, task)
                     .expect("Queue ran out of space");
             }
         }
@@ -88,7 +89,7 @@ pub trait Scheduler<const NUM_DISPATCH_PRIOS: usize, const Q_LEN: usize>: Sized 
             let prev_deadline = self.run_queue().get(_rq_idx);
             let _abs_dl = self.system_deadline().load();
 
-            #[cfg(feature = "defmt")]
+            #[cfg(all(feature = "defmt", not(feature = "benchmark")))]
             defmt::trace!(
                 "[DISPATCHER ENTRY] sys dl: {}, task dl: {}",
                 _abs_dl,
@@ -96,7 +97,11 @@ pub trait Scheduler<const NUM_DISPATCH_PRIOS: usize, const Q_LEN: usize>: Sized 
             );
 
             // Optionally assert that the deadline hasn't been missed
-            #[cfg(all(feature = "defmt", feature = "check-missed-deadlines"))]
+            #[cfg(all(
+                feature = "defmt",
+                not(feature = "benchmark"),
+                feature = "check-missed-deadlines"
+            ))]
             {
                 // TODO: cortex-m leaking here
                 use cortex_m::peripheral::scb::VectActive;
@@ -149,7 +154,7 @@ pub trait Scheduler<const NUM_DISPATCH_PRIOS: usize, const Q_LEN: usize>: Sized 
         let wq = self.wait_queue();
         let prev_deadline = self.run_queue().get(rq_idx);
 
-        #[cfg(feature = "defmt")]
+        #[cfg(all(feature = "defmt", not(feature = "benchmark")))]
         defmt::trace!(
             "[COMPLETE TASK] new dl: {}, dispatcher idx: {}, run queue idx: {}",
             prev_deadline,
@@ -185,11 +190,14 @@ pub trait Scheduler<const NUM_DISPATCH_PRIOS: usize, const Q_LEN: usize>: Sized 
         let next_task = wq.pop();
 
         critical_section::with(|cs| {
+            #[cfg(all(feature = "benchmark", bench_dispatcher_exit_cs))]
+            benchmark::begin_trace();
+
             if let Some(task) = next_task {
                 let sys_dl = self.system_deadline().load();
 
                 if task.abs_deadline() < sys_dl {
-                    #[cfg(feature = "defmt")]
+                    #[cfg(all(feature = "defmt", not(feature = "benchmark")))]
                     defmt::trace!(
                         "[DEQUEUE TASK] now: {}, sys dl: {}, task dispatcher: {}, task run queue idx: {}, task dl: {}",
                         Self::now(),
@@ -202,9 +210,12 @@ pub trait Scheduler<const NUM_DISPATCH_PRIOS: usize, const Q_LEN: usize>: Sized 
                     execute(self, &cs, task);
                 } else {
                     // Task isn't ready to run. Put it back into queue.
-                    wq.insert(task).expect("Queue ran out of space");
+                    wq.insert(cs, task).expect("Queue ran out of space");
                 }
             }
+
+            #[cfg(all(feature = "benchmark", bench_dispatcher_exit_cs))]
+            benchmark::print_trace();
         });
     }
 }
@@ -234,7 +245,7 @@ fn execute<S, const D_LEN: usize, const Q_LEN: usize>(
 
     let prev_dl = scheduler.system_deadline().swap(task.abs_deadline());
 
-    #[cfg(feature = "defmt")]
+    #[cfg(all(feature = "defmt", not(feature = "benchmark")))]
     defmt::trace!(
         "[EXEC] new dl: {}, prev dl: {}",
         scheduler.system_deadline().load(),

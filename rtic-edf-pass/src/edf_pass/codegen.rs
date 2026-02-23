@@ -186,9 +186,9 @@ impl CodeGen {
                         const RUN_QUEUE_IDX: u16 = #rq_idx;
 
                         let task_to_run =  unsafe { #static_ident.assume_init_mut() };
-                        let deadline_to_restore = SCHEDULER.dispatcher_entry(RUN_QUEUE_IDX);
+                        let deadline_to_restore = SCHEDULER.check_missed_deadline(RUN_QUEUE_IDX);
                         task_to_run.exec();
-                        SCHEDULER.dispatcher_exit::<#task_ident>(deadline_to_restore);
+                        SCHEDULER.dispatcher_exit::<#task_ident>(RUN_QUEUE_IDX);
                     }
                 }
             })

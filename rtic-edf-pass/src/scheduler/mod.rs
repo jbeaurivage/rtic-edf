@@ -74,27 +74,18 @@ pub trait Scheduler<const NUM_DISPATCH_PRIOS: usize, const Q_LEN: usize>: Sized 
         }
     }
 
-    /// Dispatcher entry
+    /// Check for missed deadlines.
     ///
     /// This function must be called at the top of a dispatcher, before the task
-    /// executes.
-    ///
-    /// # Returns
-    ///
-    /// The previous timeline, which must be restored when the task completes.
-    ///
-    /// Each dispatcher should call these functions as follows:
-    ///
-    /// 1. dispatcher_entry()
-    /// 2. Execute its task
-    /// 3. dispatcher_exit()
+    /// executes.z
     #[inline]
-    fn dispatcher_entry(&self, rq_idx: u16) -> Timestamp {
+    fn check_missed_deadline(&self, _rq_idx: u16) {
         // The dispatcher runs at its own priority (lower than the timestamper prio).
         // Therefore we need to make sure the task DL taken from the RQ and the system
         // DL are in sync.
+        #[cfg(feature = "check-missed-deadlines")]
         critical_section::with(|_| {
-            let prev_deadline = self.run_queue().get(rq_idx);
+            let prev_deadline = self.run_queue().get(_rq_idx);
             let _abs_dl = self.system_deadline().load();
 
             #[cfg(feature = "defmt")]
@@ -124,7 +115,7 @@ pub trait Scheduler<const NUM_DISPATCH_PRIOS: usize, const Q_LEN: usize>: Sized 
                     now,
                     _abs_dl,
                     now - _abs_dl,
-                    rq_idx,
+                    _rq_idx,
                     irqn,
                 );
             }
@@ -154,8 +145,9 @@ pub trait Scheduler<const NUM_DISPATCH_PRIOS: usize, const Q_LEN: usize>: Sized 
     /// interrupt unmasking associated function, which means it will get
     /// monomorphized.
     #[inline]
-    fn dispatcher_exit<T: EdfTaskBinding>(&self, prev_deadline: Timestamp) {
+    fn dispatcher_exit<T: EdfTaskBinding>(&self, rq_idx: u16) {
         let wq = self.wait_queue();
+        let prev_deadline = self.run_queue().get(rq_idx);
 
         #[cfg(feature = "defmt")]
         defmt::trace!(

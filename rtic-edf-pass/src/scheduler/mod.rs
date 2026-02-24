@@ -168,6 +168,9 @@ pub trait Scheduler<const NUM_DISPATCH_PRIOS: usize, const Q_LEN: usize>: Sized 
         // erroneously re-pended as soon as it is exited, which would lead to the task
         // being scheduled+executed twice if we didn't manually unpend it.
         T::unpend_timestamper_interrupt();
+        unsafe {
+            T::unmask_timestamper_interrupt();
+        }
 
         // It's possible that a task showed up in the queue as the previous (just
         // completed) task was running. So we need to check if it would preempt
@@ -201,12 +204,6 @@ pub trait Scheduler<const NUM_DISPATCH_PRIOS: usize, const Q_LEN: usize>: Sized 
                     // Task isn't ready to run. Put it back into queue.
                     wq.insert(task).expect("Queue ran out of space");
                 }
-            }
-
-            // CAUTION: This must be the last thing that is called in the function, just
-            // before exiting the critical section.
-            unsafe {
-                T::unmask_timestamper_interrupt();
             }
         });
     }

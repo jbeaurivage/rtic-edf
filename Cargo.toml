@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["cortex-m-edf-rtic", "rtic-edf-pass"]
+members = ["cortex-m-edf-rtic", "rtic-edf-pass", "priority-queue"]
 exclude = ["benchmarks"]
 
 [profile.dev]

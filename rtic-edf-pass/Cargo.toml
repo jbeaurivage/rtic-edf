@@ -18,7 +18,7 @@ critical-section = "1.2.0"
 
 [dependencies.priority-queue]
 version = "0.1"
-path = "../../inplace-sort/priority_queue"
+path = "../priority-queue"
 
 [features]
 std = ["dep:heck", "dep:proc-macro2", "dep:quote", "dep:syn", "dep:rtic-core"]

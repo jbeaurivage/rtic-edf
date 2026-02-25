@@ -1,0 +1,409 @@
+#![cfg_attr(all(not(test), not(feature = "std")), no_std)]
+
+use core::cell::UnsafeCell;
+use core::{fmt::Debug, ptr};
+
+use critical_section::{CriticalSection, acquire, release};
+
+mod node;
+use node::{Node, NodePtr};
+
+#[cfg(feature = "benchmark")]
+mod benchmark;
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Error {
+    QueueFull,
+}
+
+struct TraversalState {
+    min_ptr: NodePtr,
+    prev_cursor: NodePtr,
+    cursor: NodePtr,
+    min_predecessor: NodePtr,
+}
+
+// #[derive(Debug)]
+pub struct PriorityQueue<T: PartialOrd, const N: usize> {
+    data: [UnsafeCell<Node<T>>; N],
+    head_ptr: UnsafeCell<Option<NodePtr>>,
+    free_ptr: UnsafeCell<Option<NodePtr>>,
+    tail_ptr: UnsafeCell<Option<NodePtr>>,
+
+    traversal_state: UnsafeCell<Option<TraversalState>>,
+}
+
+impl<T: PartialOrd, const N: usize> Default for PriorityQueue<T, N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+unsafe impl<T: PartialOrd, const N: usize> Send for PriorityQueue<T, N> {}
+unsafe impl<T: PartialOrd, const N: usize> Sync for PriorityQueue<T, N> {}
+
+// TODO: remove this ugly-ass impl block when done debugging
+impl<T: Debug + PartialOrd, const N: usize> Debug for PriorityQueue<T, N> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        critical_section::with(|_| {
+            unsafe {
+                writeln!(
+                    f,
+                    "PriorityQueue:\n\thead_ptr = {:?}\n\ttail_ptr = {:?}\n\tfree_ptr = {:?}",
+                    *self.head_ptr.get(),
+                    *self.tail_ptr.get(),
+                    *self.free_ptr.get(),
+                )?;
+
+                writeln!(f, "[STORAGE]")?;
+
+                for i in 0..N {
+                    // TODO: the peek_at call here is definitely unsound
+                    writeln!(
+                        f,
+                        "\t({i}) {:?}, value: {:?}",
+                        *self.data[i].get(),
+                        self.peek_at(i as NodePtr)
+                    )?;
+
+                    // writeln!(f, "\t({i}) {:?}", self.data[i])?;
+                }
+                writeln!(f, "[DATA]")?;
+
+                if let Some(mut cursor) = *self.head_ptr.get() {
+                    loop {
+                        // TODO: the peek_at call here is definitely unsound. Only use for debugging
+                        writeln!(
+                            f,
+                            "\t({cursor}) {:?}, value: {:?}",
+                            *self.data[cursor as usize].get(),
+                            self.peek_at(cursor)
+                        )?;
+                        // writeln!(f, "\t({cursor}) {:?}", self.data[cursor as usize])?;
+
+                        if let Some(next) = *self.next_at(cursor) {
+                            cursor = next
+                        } else {
+                            break;
+                        };
+                    }
+                }
+
+                writeln!(f, "[FREE]")?;
+
+                if let Some(mut cursor) = *self.free_ptr.get() {
+                    loop {
+                        // TODO: the peek_at call here is definitely unsound. Only use for debugging
+                        writeln!(
+                            f,
+                            "\t({cursor}) {:?}, value: {:?}",
+                            *self.data[cursor as usize].get(),
+                            self.peek_at(cursor)
+                        )?;
+                        // writeln!(f, "\t({cursor}) {:?}", self.data[cursor as usize])?;
+
+                        if let Some(next) = *self.next_at(cursor) {
+                            cursor = next
+                        } else {
+                            break;
+                        };
+                    }
+                }
+            }
+            Ok(())
+        })
+    }
+}
+
+impl<T: PartialOrd, const N: usize> PriorityQueue<T, N> {
+    /// Returns a `&` reference to the node held at the specified index.
+    ///
+    /// # Safety
+    ///
+    /// The following invariants must be held:
+    ///
+    /// * The provided index must be within the backing array's bounds. No
+    ///   runtime checks are performed.
+    #[inline]
+    unsafe fn node_at(&self, idx: NodePtr) -> *mut Node<T> {
+        unsafe { self.data.get_unchecked(idx as usize).get() }
+    }
+
+    /// Returns a reference to the value held at the specified node index.
+    ///
+    /// # Safety
+    ///
+    /// The following invariants must be held:
+    ///
+    /// * The provided index must be within the backing array's bounds. No
+    ///   runtime checks are performed.
+    /// * The data held by the accessed node *must* have been previously
+    ///   initialized.
+    /// * The node at the specified index must not already be mutably borrowed
+    #[inline]
+    unsafe fn peek_at(&self, idx: NodePtr) -> &T {
+        unsafe { (&*self.node_at(idx)).value.assume_init_ref() }
+    }
+
+    /// Returns a raw pointer Option to the `next` pointer held by the specified
+    /// node
+    #[inline]
+    unsafe fn next_at(&self, idx: NodePtr) -> *mut Option<NodePtr> {
+        unsafe { &mut (*self.node_at(idx)).next as _ }
+    }
+
+    /// Returns a reference to the node at the head of the free list
+    #[inline]
+    unsafe fn free_node(&self) -> Option<&Node<T>> {
+        // SAFETY: free_ptr is guaranteed to be within the list bounds if it is `Some`
+        unsafe { Some(&*self.node_at((self.get_free_ptr())?)) }
+    }
+
+    /// Returns a reference to the node at the tail of the list
+    #[inline]
+    unsafe fn tail_node(&self) -> Option<*mut Node<T>> {
+        // SAFETY: tail_ptr is guaranteed to be within the list bounds if it is `Some`
+        unsafe { Some(self.node_at(self.get_tail_ptr()?)) }
+    }
+
+    #[inline]
+    unsafe fn get_tail_ptr(&self) -> Option<NodePtr> {
+        unsafe { *self.tail_ptr.get() }
+    }
+
+    #[inline]
+    unsafe fn set_tail_ptr(&self, new: Option<NodePtr>) {
+        unsafe {
+            *self.tail_ptr.get() = new;
+        }
+    }
+
+    #[inline]
+    unsafe fn get_head_ptr(&self) -> Option<NodePtr> {
+        unsafe { *self.head_ptr.get() }
+    }
+
+    #[inline]
+    unsafe fn set_head_ptr(&self, new: Option<NodePtr>) {
+        unsafe {
+            *self.head_ptr.get() = new;
+        }
+    }
+
+    #[inline]
+    unsafe fn get_free_ptr(&self) -> Option<NodePtr> {
+        unsafe { *self.free_ptr.get() }
+    }
+
+    #[inline]
+    unsafe fn set_free_ptr(&self, new: Option<NodePtr>) {
+        unsafe {
+            *self.free_ptr.get() = new;
+        }
+    }
+
+    /// Create a new queue.
+    #[inline]
+    pub const fn new() -> Self {
+        let mut pq = Self {
+            data: [const { UnsafeCell::new(Node::new_uninit()) }; N],
+            head_ptr: UnsafeCell::new(None),
+            tail_ptr: UnsafeCell::new(None),
+            free_ptr: UnsafeCell::new(Some(0)),
+
+            traversal_state: UnsafeCell::new(None),
+        };
+
+        // Initialize free list.
+        // Annoyingly, we can't use for loops in const fns :(
+        let mut i = 0;
+        while i < N {
+            pq.data[i].get_mut().next = if i < N - 1 {
+                Some(i as NodePtr + 1)
+            } else {
+                None
+            };
+            i += 1;
+        }
+
+        pq
+    }
+
+    /// Insert an element into the queue.
+    ///
+    /// # Errors
+    ///
+    /// * Returns [`Error::QueueFull`] if there is no space left in the backing storage.
+    #[inline]
+    pub fn insert(&self, _cs: CriticalSection<'_>, data: T) -> Result<(), Error> {
+        if self.data.is_empty() {
+            return Err(Error::QueueFull);
+        }
+
+        unsafe {
+            // Pick the first free node to allocate to and move the free ptr to the next
+            // available free node
+            let insert_at = self.get_free_ptr().ok_or(Error::QueueFull)?;
+            let new_tail = Some(insert_at);
+
+            // SAFETY: We've just proven free is Some above
+            let next_free = self.free_node().unwrap_unchecked().next;
+            self.set_free_ptr(next_free);
+
+            match self.tail_node() {
+                Some(t) => {
+                    (*t).next = new_tail;
+                }
+                None => {
+                    self.set_head_ptr(new_tail);
+                }
+            }
+
+            self.set_tail_ptr(new_tail);
+
+            // SAFETY: tail is guaranteed to be Some from above
+            *self.tail_node().unwrap_unchecked() = Node::new(data, None);
+
+            Ok(())
+        }
+    }
+
+    #[inline]
+    pub fn len(&self, _cs: CriticalSection<'_>) -> usize {
+        unsafe {
+            let Some(mut cursor) = *self.head_ptr.get() else {
+                return 0;
+            };
+
+            let mut cnt = 1;
+            while let Some(next) = (*self.node_at(cursor)).next {
+                cnt += 1;
+                cursor = next;
+            }
+            cnt
+        }
+    }
+
+    #[inline]
+    pub fn pop(&self) -> Option<T> {
+        unsafe {
+            // SAFETY: Cannot use critical_section::with because returning from the closure
+            // doesn't return the entire function. We have to be careful to release the CS
+            // at every point where the function can return.
+            let cs_restore = acquire();
+            #[cfg(all(feature = "benchmark", bench_pop_cs))]
+            benchmark::begin_trace();
+
+            // First, check whether STATE is full or empty. If full, this means we're
+            // preempting/stealing an ongoing pop operation; we simply move onto the next
+            // step. If empty, we start a new one.
+            let state = &mut *self.traversal_state.get();
+            if state.is_none() {
+                // List is empty
+                let Some(head_ptr) = *self.head_ptr.get() else {
+                    #[cfg(all(feature = "benchmark", bench_pop_cs))]
+                    benchmark::print_trace();
+                    release(cs_restore);
+
+                    return None;
+                };
+
+                let head_node = self.node_at(head_ptr);
+                let min_ptr = head_ptr;
+
+                // Special case for a singleton list
+                if (*head_node).next.is_none() {
+                    let value = ptr::read((*head_node).value.assume_init_ref());
+
+                    *self.next_at(head_ptr) = self.get_free_ptr();
+
+                    self.set_free_ptr(Some(head_ptr));
+
+                    self.set_head_ptr(None);
+                    self.set_tail_ptr(None);
+
+                    #[cfg(all(feature = "benchmark", bench_pop_cs))]
+                    benchmark::print_trace();
+                    release(cs_restore);
+
+                    return Some(value);
+                };
+
+                state.replace(TraversalState {
+                    min_ptr,
+                    cursor: head_ptr,
+                    prev_cursor: head_ptr,
+                    min_predecessor: head_ptr,
+                });
+            }
+
+            #[cfg(all(feature = "benchmark", bench_pop_cs))]
+            benchmark::print_trace();
+            release(cs_restore);
+
+            let (cs_restore, state) = loop {
+                let cs_restore = acquire();
+                #[cfg(all(feature = "benchmark", bench_pop_cs))]
+                benchmark::begin_trace();
+
+                // If state is now None, we've been preempted and the pop has been stolen from
+                // under us. Our work here is done.
+                let Some(state) = &mut *self.traversal_state.get() else {
+                    #[cfg(all(feature = "benchmark", bench_pop_cs))]
+                    benchmark::print_trace();
+                    critical_section::release(cs_restore);
+
+                    return None;
+                };
+
+                // We've reached the end of the queue. Don't release the CS yet; we need to
+                // update the queue pointers and pop the task first.
+                let Some(next) = *self.next_at(state.cursor) else {
+                    break (cs_restore, state);
+                };
+
+                // NOTE: <= necessary here to properly handle duplicate elements in list, ie set
+                // second_min_ptr to an element of same value as min_value
+                if self.peek_at(next) <= self.peek_at(state.min_ptr) && state.min_ptr != next {
+                    state.min_ptr = next;
+                    state.min_predecessor = state.cursor;
+                }
+
+                state.prev_cursor = state.cursor;
+                state.cursor = next;
+
+                #[cfg(all(feature = "benchmark", bench_pop_cs))]
+                benchmark::print_trace();
+                release(cs_restore);
+            };
+
+            let popped_value = ptr::read(self.peek_at(state.min_ptr));
+            let next_after_min = *self.next_at(state.min_ptr);
+
+            // If popped node was head, update head
+            if Some(state.min_ptr) == self.get_head_ptr() {
+                self.set_head_ptr(next_after_min);
+            } else {
+                // Otherwise patch previous node
+                (*self.node_at(state.min_predecessor)).next = next_after_min;
+            }
+
+            // If popped node was tail, update tail
+            if Some(state.min_ptr) == self.get_tail_ptr() {
+                self.set_tail_ptr(Some(state.prev_cursor));
+            }
+
+            // Deallocate node by moving it into the free list
+            *self.next_at(state.min_ptr) = self.get_free_ptr();
+            self.set_free_ptr(Some(state.min_ptr));
+
+            (*self.traversal_state.get()) = None;
+
+            #[cfg(all(feature = "benchmark", bench_pop_cs))]
+            benchmark::print_trace();
+            release(cs_restore);
+
+            Some(popped_value)
+        }
+    }
+}

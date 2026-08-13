@@ -28,7 +28,9 @@ impl SystemDeadline {
     /// old deadline
     #[inline]
     #[must_use]
-    pub(super) fn swap(&self, new_dl: Timestamp) -> Timestamp {
-        self.0.swap(new_dl, Ordering::Release)
+    pub(super) fn replace(&self, new_dl: Timestamp) -> Timestamp {
+        let old = self.0.load(Ordering::Acquire);
+        self.0.store(new_dl, Ordering::Release);
+        old
     }
 }

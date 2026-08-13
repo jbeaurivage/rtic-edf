@@ -232,7 +232,7 @@ fn execute<S, const D_LEN: usize, const Q_LEN: usize>(
     let rq_idx = task.rq_index();
     let dispatcher_idx = task.dispatcher_index();
 
-    let prev_dl = scheduler.system_deadline().swap(task.abs_deadline());
+    let prev_dl = scheduler.system_deadline().replace(task.abs_deadline());
 
     #[cfg(feature = "defmt")]
     defmt::trace!(
